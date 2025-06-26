@@ -1,85 +1,153 @@
-require('dotenv').config();
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const app = express();
+const PORT = 3000;
 
-// Создаем папку для загрузок, если её нет
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Разрешаем запросы от фронтенда
+// Включаем CORS для всех запросов
 app.use(cors());
+
+// Парсинг JSON в запросах
 app.use(express.json());
 
-// Разрешаем доступ к статическим файлам
-app.use('/uploads', express.static(uploadsDir));
-
-// Подключаем базу данных SQLite
-const db = new sqlite3.Database('./database.db', (err) => {
-  if (err) {
-    console.error('Ошибка подключения к базе данных:', err.message);
-  } else {
-    console.log('Успешное подключение к базе данных');
-  }
-});
-
-// Создаем таблицу для документов
-db.run(`
-  CREATE TABLE IF NOT EXISTS documents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    file_path TEXT NOT NULL
-  )
-`, (err) => {
-  if (err) {
-    console.error('Ошибка создания таблицы документов:', err);
-  }
-});
-
-// Добавляем тестовые документы
-db.get("SELECT COUNT(*) as count FROM documents", (err, row) => {
-  if (err) return console.error(err);
-  
-  if (row.count === 0) {
-    const stmt = db.prepare("INSERT INTO documents (title, file_path) VALUES (?, ?)");
-    stmt.run('Устав профсоюза', 'ustav.pdf');
-    stmt.run('Коллективный договор', 'dogovor.pdf');
-    stmt.run('Правила внутреннего трудового распорядка', 'pravila.pdf');
-    stmt.finalize();
-    console.log('Добавлены тестовые документы');
-    
-    // Создаем пустые тестовые файлы
-    ['ustav.pdf', 'dogovor.pdf', 'pravila.pdf'].forEach(file => {
-      fs.writeFileSync(path.join(uploadsDir, file), '');
-    });
-  }
-});
-
-// Простой маршрут для проверки
+// Роут для проверки работы сервера
 app.get('/', (req, res) => {
-  res.send('Сервер бэкенда работает!');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Бэкенд Роснефть | Документы профсоюза</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f0f0f0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+        }
+        .container {
+          text-align: center;
+          padding: 30px;
+          background: white;
+          border-radius: 15px;
+          box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+          max-width: 600px;
+        }
+        .logo {
+          max-width: 200px;
+          margin: 0 auto 20px;
+        }
+        h1 {
+          color: #010101;
+          margin-bottom: 20px;
+        }
+        .status {
+          color: #4caf50;
+          font-weight: bold;
+          font-size: 1.2em;
+          margin: 20px 0;
+        }
+        .links {
+          margin-top: 25px;
+          text-align: left;
+          background: #f9f9f9;
+          padding: 15px;
+          border-radius: 8px;
+        }
+        .btn {
+          display: inline-block;
+          background-color: #fbba06;
+          color: #010101;
+          padding: 10px 20px;
+          border-radius: 5px;
+          text-decoration: none;
+          font-weight: bold;
+          margin: 10px;
+          transition: all 0.3s;
+        }
+        .btn:hover {
+          background-color: #e6a800;
+          transform: translateY(-2px);
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <img src="https://www.rosneft.ru/static/rosneft_logo_ru.svg" alt="Роснефть" class="logo">
+        <h1>Документы профсоюза</h1>
+        <div class="status">Бэкенд успешно работает! 🚀</div>
+        <p>Сервер готов обрабатывать запросы</p>
+        
+        <div class="links">
+          <h3>Доступные эндпоинты:</h3>
+          <ul>
+            <li><a href="/documents">GET /documents</a> - список документов</li>
+            <li><a href="/uploads/ustav.pdf">GET /uploads/ustav.pdf</a> - Устав профсоюза</li>
+            <li><a href="/uploads/dogovor.pdf">GET /uploads/dogovor.pdf</a> - Договор о приёме</li>
+            <li><a href="/uploads/pravila.pdf">GET /uploads/pravila.pdf</a> - Правила внутреннего распорядка</li>
+          </ul>
+        </div>
+        
+        <a href="http://localhost:5173" class="btn">Перейти к фронтенду</a>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
-// API для получения документов
-app.get('/api/documents', (req, res) => {
-  db.all('SELECT * FROM documents', [], (err, rows) => {
-    if (err) {
-      console.error('Ошибка получения документов:', err);
-      return res.status(500).json({ error: 'Ошибка сервера' });
+// Роут для получения документов
+app.get('/documents', (req, res) => {
+  console.log('Запрос на получение документов');
+  
+  const testDocuments = [
+    {
+      id: 1,
+      title: "Устав профсоюза",
+      file_path: "ustav.pdf"
+    },
+    {
+      id: 2,
+      title: "Договор о приёме",
+      file_path: "dogovor.pdf"
+    },
+    {
+      id: 3,
+      title: "Правила внутреннего распорядка",
+      file_path: "pravila.pdf"
     }
-    res.json(rows);
-  });
+  ];
+  
+  res.json(testDocuments);
 });
 
-// Запускаем сервер
-const PORT = process.env.PORT || 3000;
+// Обслуживаем статические файлы из папки 'uploads'
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Middleware для принудительного скачивания PDF
+app.get('/uploads/:file', (req, res, next) => {
+  const file = req.params.file;
+  if (file.endsWith('.pdf')) {
+    res.setHeader('Content-Disposition', 'attachment; filename=' + file);
+  }
+  next();
+});
+
+// Обработка ошибок
+app.use((err, req, res, next) => {
+  console.error('Ошибка сервера:', err.stack);
+  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+});
+
+// Запуск сервера
 app.listen(PORT, () => {
   console.log(`Сервер запущен на http://localhost:${PORT}`);
-  console.log(`API документов: http://localhost:${PORT}/api/documents`);
-  console.log(`Папка загрузок: ${uploadsDir}`);
+  console.log('Проверка работы:');
+  console.log('  GET /');
+  console.log('Документы доступны по:');
+  console.log('  GET /documents');
+  console.log('Статические файлы:');
+  console.log('  GET /uploads/:filename');
 });
